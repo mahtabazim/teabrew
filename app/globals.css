@@ -1,0 +1,76 @@
+@import "tailwindcss";
+
+@theme inline {
+  --color-cream: var(--cream);
+  --color-surface: var(--surface);
+  --color-surface-alt: var(--surface-alt);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-brew: var(--brew);
+  --color-brew-soft: var(--brew-soft);
+  --color-leaf: var(--leaf);
+
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-fraunces), ui-serif, Georgia, serif;
+}
+
+:root {
+  --cream: #fdf8f3;
+  --surface: #ffffff;
+  --surface-alt: #fbf1e7;
+  --ink: #2a211a;
+  --muted: #7a6a5d;
+  --line: #ece0d3;
+  --brew: #b26a12;
+  --brew-soft: #fbeed9;
+  --leaf: #3f6b4f;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --cream: #17120e;
+    --surface: #211a15;
+    --surface-alt: #2b221b;
+    --ink: #f4ece3;
+    --muted: #b3a294;
+    --line: #3a2e25;
+    --brew: #e0a355;
+    --brew-soft: #3a2a15;
+    --leaf: #8fbf9f;
+  }
+}
+
+@layer base {
+  body {
+    color: var(--ink);
+    background-color: var(--cream);
+  }
+
+  ::selection {
+    background-color: var(--brew);
+    color: var(--cream);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--brew);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Leaflet renders its own light-themed chrome; soften it to match the page. */
+.leaflet-container {
+  font-family: var(--font-inter), sans-serif;
+  background: var(--surface-alt);
+}
