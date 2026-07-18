@@ -21,7 +21,7 @@ export type Shop = {
 
 type OverpassTags = Record<string, string | undefined>;
 
-type OverpassElement = {
+export type OverpassElement = {
   id: number;
   lat?: number;
   lon?: number;
@@ -65,28 +65,18 @@ function formatAddress(tags: OverpassTags): string | undefined {
 export async function geocodePlace(
   place: string,
 ): Promise<{ label: string; lat: number; lon: number } | null> {
-  const url = `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(place)}`;
-  const response = await fetch(url);
+  const response = await fetch(`/api/geocode?q=${encodeURIComponent(place)}`);
   if (!response.ok) throw new Error("Could not look up that place.");
 
-  const data: { lat: string; lon: string; display_name: string }[] =
-    await response.json();
-  if (data.length === 0) return null;
-
-  return {
-    label: data[0].display_name,
-    lat: parseFloat(data[0].lat),
-    lon: parseFloat(data[0].lon),
-  };
+  return response.json();
 }
 
 export async function reverseGeocode(lat: number, lon: number): Promise<string> {
   try {
-    const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`;
-    const response = await fetch(url);
+    const response = await fetch(`/api/geocode?lat=${lat}&lon=${lon}`);
     if (!response.ok) return "Your location";
-    const data: { display_name?: string } = await response.json();
-    return data.display_name ?? "Your location";
+    const data: { label?: string } = await response.json();
+    return data.label ?? "Your location";
   } catch {
     return "Your location";
   }
@@ -98,35 +88,31 @@ export type ShopResults = {
   total: number;
 };
 
-export async function findShops(
+/**
+ * A union block is required: Overpass only outputs the final statement's
+ * result set, so separate queries would silently discard all but the last.
+ */
+export function buildOverpassQuery(
   lat: number,
   lon: number,
   radiusMetres: number,
-): Promise<ShopResults> {
-  // A union block is required: Overpass only outputs the final statement's
-  // result set, so separate queries would silently discard all but the last.
-  const query = `
-    [out:json][timeout:25];
-    (
-      node["shop"~"^(tea|coffee)$"](around:${radiusMetres},${lat},${lon});
-      way["shop"~"^(tea|coffee)$"](around:${radiusMetres},${lat},${lon});
-      node["amenity"="cafe"](around:${radiusMetres},${lat},${lon});
-      way["amenity"="cafe"](around:${radiusMetres},${lat},${lon});
-    );
-    out center tags;
-  `;
-  const url = `https://overpass-api.de/api/interpreter?data=${encodeURIComponent(query)}`;
-  const response = await fetch(url);
-  if (response.status === 429 || response.status === 504) {
-    throw new Error(
-      "The OpenStreetMap search is busy right now. Give it a moment and try again.",
-    );
-  }
-  if (!response.ok) throw new Error("Could not load nearby shops.");
+): string {
+  const near = `(around:${radiusMetres},${lat},${lon})`;
+  return (
+    `[out:json][timeout:25];` +
+    `(node["shop"~"^(tea|coffee)$"]${near};way["shop"~"^(tea|coffee)$"]${near};` +
+    `node["amenity"="cafe"]${near};way["amenity"="cafe"]${near};);` +
+    `out center tags;`
+  );
+}
 
-  const data: { elements: OverpassElement[] } = await response.json();
-
-  const all = data.elements
+/** Shared by the route handler; kept pure so the transform stays testable. */
+export function parseOverpassElements(
+  elements: OverpassElement[],
+  lat: number,
+  lon: number,
+): ShopResults {
+  const all = elements
     .map((element): Shop | null => {
       const tags = element.tags ?? {};
       const category = categorise(tags);
@@ -150,6 +136,27 @@ export async function findShops(
     .sort((a, b) => a.distance - b.distance);
 
   return { shops: all.slice(0, MAX_RESULTS), total: all.length };
+}
+
+export async function findShops(
+  lat: number,
+  lon: number,
+  radiusMetres: number,
+): Promise<ShopResults> {
+  const params = new URLSearchParams({
+    lat: String(lat),
+    lon: String(lon),
+    radius: String(radiusMetres),
+  });
+  const response = await fetch(`/api/shops?${params}`);
+  if (response.status === 429 || response.status === 504) {
+    throw new Error(
+      "The OpenStreetMap search is busy right now. Give it a moment and try again.",
+    );
+  }
+  if (!response.ok) throw new Error("Could not load nearby shops.");
+
+  return response.json();
 }
 
 export function getCurrentPosition(): Promise<GeolocationPosition> {
